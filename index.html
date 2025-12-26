@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>NightGuard - Stop Late Night Snacking</title>
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="NightGuard">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icon-192.png">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap');
+        
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+            user-select: none;
+            overflow-x: hidden;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .glass-card {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+        }
+
+        .tab-active {
+            color: #38bdf8;
+            border-bottom: 3px solid #38bdf8;
+        }
+
+        .timer-glow {
+            box-shadow: 0 0 20px rgba(56, 189, 248, 0.3);
+        }
+
+        .gradient-text {
+            background: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        /* Breathing Animations */
+        @keyframes breathe-circle {
+            0%, 100% { transform: scale(0.6); opacity: 0.5; }
+            25% { transform: scale(1.1); opacity: 1; }
+            50% { transform: scale(1.1); opacity: 1; }
+            75% { transform: scale(0.6); opacity: 0.5; }
+        }
+
+        .breathe-indicator {
+            animation: breathe-circle 16s infinite linear;
+        }
+
+        /* Perspective for Cards */
+        .perspective-1000 { perspective: 1000px; }
+        .transform-style-3d { transform-style: preserve-3d; }
+        .backface-hidden { backface-visibility: hidden; }
+        .rotate-y-180 { transform: rotateY(180deg); }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="p-6 flex justify-between items-center safe-area-top">
+        <div>
+            <h1 class="text-2xl font-extrabold tracking-tight">Night<span class="text-sky-400">Guard</span></h1>
+            <p class="text-xs text-slate-400">Your kitchen is now closed.</p>
+        </div>
+        <div class="w-10 h-10 rounded-full bg-sky-500/20 flex items-center justify-center border border-sky-500/30">
+            <i class="fas fa-moon text-sky-400"></i>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main id="app-content" class="flex-1 px-4 pb-24 overflow-y-auto">
+        <!-- Dashboard View -->
+        <section id="view-dashboard" class="space-y-6">
+            <!-- Install PWA Prompt (Hidden by default) -->
+            <div id="install-prompt" class="hidden glass-card p-4 border-l-4 border-amber-400 flex justify-between items-center">
+                <div>
+                    <h4 class="font-bold text-amber-400">Install App</h4>
+                    <p class="text-xs text-slate-400">Add to home screen for quick access</p>
+                </div>
+                <button id="btn-install" class="bg-amber-500 text-slate-900 px-4 py-2 rounded-full text-xs font-bold">Install</button>
+            </div>
+
+            <div class="glass-card p-6 flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-slate-400 font-semibold uppercase tracking-wider">Current Streak</p>
+                    <h2 class="text-4xl font-black mt-1">3 <span class="text-lg font-normal text-slate-500">Nights</span></h2>
+                </div>
+                <div class="text-right">
+                    <div class="text-amber-400 text-3xl mb-1">🔥</div>
+                    <p class="text-xs text-slate-400">Keep it up!</p>
+                </div>
+            </div>
+
+            <div class="flex flex-col items-center justify-center py-4">
+                <div class="relative w-64 h-64 rounded-full border-8 border-slate-800 flex flex-col items-center justify-center timer-glow bg-slate-900/50">
+                    <svg class="absolute inset-0 w-full h-full -rotate-90">
+                        <circle cx="128" cy="128" r="120" stroke="currentColor" stroke-width="8" fill="transparent" class="text-sky-500/10" />
+                        <circle id="progress-circle" cx="128" cy="128" r="120" stroke="currentColor" stroke-width="8" fill="transparent" stroke-dasharray="754" stroke-dashoffset="200" class="text-sky-500 transition-all duration-1000" stroke-linecap="round" />
+                    </svg>
+                    <span class="text-slate-400 text-sm uppercase font-bold tracking-widest mb-1">Watch Ends In</span>
+                    <span id="timer-clock" class="text-5xl font-black tracking-tighter">07:22:14</span>
+                </div>
+                <button id="btn-panic" class="mt-8 px-8 py-3 bg-rose-500 hover:bg-rose-600 text-white font-bold rounded-full shadow-lg shadow-rose-900/20 transition-all transform active:scale-95">
+                    I'M HUNGRY! <i class="fas fa-bolt ml-2"></i>
+                </button>
+            </div>
+
+            <div>
+                <h3 class="text-lg font-bold mb-3 px-2">Nightly Wisdom</h3>
+                <div class="flex space-x-4 overflow-x-auto pb-4 no-scrollbar">
+                    <div class="min-w-[280px] glass-card p-5 border-l-4 border-l-sky-500">
+                        <i class="fas fa-glass-water text-sky-400 text-xl mb-2"></i>
+                        <h4 class="font-bold">The H2O Trick</h4>
+                        <p class="text-sm text-slate-400 mt-1">Thirst often masquerades as hunger. Drink a tall glass of water and wait 10 mins.</p>
+                    </div>
+                    <div class="min-w-[280px] glass-card p-5 border-l-4 border-l-purple-500">
+                        <i class="fas fa-tooth text-purple-400 text-xl mb-2"></i>
+                        <h4 class="font-bold">Minty Fresh Barrier</h4>
+                        <p class="text-sm text-slate-400 mt-1">Brushing your teeth early signals your brain that eating time is over.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Education View -->
+        <section id="view-tips" class="hidden space-y-6">
+            <h2 class="text-3xl font-black gradient-text">Science Tips</h2>
+            <div class="space-y-4">
+                <div class="glass-card p-5">
+                    <h4 class="font-bold text-indigo-400">The Dopamine Trap</h4>
+                    <p class="text-sm text-slate-400">Tired brains seek quick dopamine hits (sugar/salt) to stay awake.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Stats View -->
+        <section id="view-stats" class="hidden space-y-6">
+            <h2 class="text-3xl font-black gradient-text">Your Progress</h2>
+            <div class="glass-card p-6 text-center">
+                <p class="text-slate-400 uppercase font-bold text-xs">Total Health Score</p>
+                <p class="text-5xl font-black text-sky-400 mt-2">850</p>
+            </div>
+        </section>
+    </main>
+
+    <!-- Panic Overlay Modal -->
+    <div id="panic-modal" class="fixed inset-0 bg-slate-950/95 z-50 flex flex-col items-center justify-center p-8 hidden overflow-y-auto">
+        
+        <!-- Options Menu -->
+        <div id="panic-menu" class="text-center space-y-6 w-full max-w-sm">
+            <h2 class="text-4xl font-black text-rose-400">URGE ALERT</h2>
+            <p class="text-slate-300">Choose a 5-minute distraction:</p>
+            
+            <div class="space-y-3 w-full">
+                <button onclick="handlePanicOption('Water')" class="w-full p-4 glass-card text-left flex items-center hover:bg-sky-500/20 active:bg-sky-500/40 transition-colors">
+                    <span class="text-2xl mr-4">💧</span>
+                    <div><p class="font-bold">Drink Water</p><p class="text-xs text-slate-400">Nature's appetite suppressant.</p></div>
+                </button>
+                <button onclick="openBreathe()" class="w-full p-4 glass-card text-left flex items-center hover:bg-purple-500/20 border-2 border-purple-500/30 active:bg-purple-500/40 transition-colors">
+                    <span class="text-2xl mr-4">🧘</span>
+                    <div><p class="font-bold">Box Breathing</p><p class="text-xs text-slate-400">Reset your nervous system.</p></div>
+                </button>
+                <button onclick="openGame()" class="w-full p-4 glass-card text-left flex items-center hover:bg-amber-500/20 border-2 border-amber-500/30 active:bg-amber-500/40 transition-colors">
+                    <span class="text-2xl mr-4">🧩</span>
+                    <div><p class="font-bold">Zen Match Game</p><p class="text-xs text-slate-400">Outsmart your cravings.</p></div>
+                </button>
+            </div>
+            <button id="close-panic" class="text-slate-500 font-bold uppercase text-xs tracking-widest mt-4 underline p-4">I gave in (Reset Streak)</button>
+        </div>
+
+        <!-- Breathing Container -->
+        <div id="breathe-container" class="hidden w-full max-w-sm flex flex-col items-center">
+            <button onclick="closePanicModals()" class="self-start text-slate-400 mb-8 p-2"><i class="fas fa-chevron-left mr-2"></i> Back</button>
+            
+            <div class="relative w-48 h-48 flex items-center justify-center">
+                <div class="absolute inset-0 border-4 border-slate-800 rounded-3xl"></div>
+                <!-- Moving Indicator -->
+                <div class="breathe-indicator w-32 h-32 bg-purple-500/40 rounded-full blur-xl"></div>
+                <div class="breathe-indicator w-16 h-16 bg-purple-400 rounded-full flex items-center justify-center text-white shadow-2xl shadow-purple-500/50">
+                    <i class="fas fa-wind"></i>
+                </div>
+            </div>
+
+            <div class="text-center mt-12 space-y-4">
+                <h3 id="breathe-instruction" class="text-3xl font-black text-purple-400 uppercase tracking-tighter">Get Ready...</h3>
+                <div id="breathe-counter" class="text-6xl font-black">4</div>
+                <div class="flex items-center justify-center space-x-2 text-slate-400">
+                    <i class="fas fa-volume-up text-xs"></i>
+                    <p class="text-sm italic">Sound on for the best experience</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Game Container -->
+        <div id="game-container" class="hidden w-full max-w-sm flex flex-col items-center">
+            <div class="flex justify-between w-full mb-6 items-center">
+                <button onclick="closePanicModals()" class="text-slate-400 p-2"><i class="fas fa-chevron-left mr-2"></i> Back</button>
+                <span id="game-score" class="font-bold text-amber-400">Pairs: 0/6</span>
+            </div>
+            <div id="memory-grid" class="grid grid-cols-3 gap-3 w-full aspect-square"></div>
+        </div>
+    </div>
+
+    <!-- Feedback Message Box -->
+    <div id="toast" class="fixed bottom-24 left-1/2 -translate-x-1/2 bg-sky-600 text-white px-6 py-3 rounded-full font-bold shadow-2xl opacity-0 pointer-events-none transition-all duration-300 z-50 text-center min-w-[200px]"></div>
+
+    <!-- Navigation -->
+    <nav class="fixed bottom-0 left-0 right-0 glass-card mx-4 mb-4 flex justify-around items-center p-4 z-40 safe-area-bottom">
+        <button onclick="switchView('dashboard')" class="nav-btn tab-active flex flex-col items-center p-2" id="nav-dashboard">
+            <i class="fas fa-house"></i><span class="text-[10px] mt-1 font-bold">WATCH</span>
+        </button>
+        <button onclick="switchView('tips')" class="nav-btn text-slate-500 flex flex-col items-center p-2" id="nav-tips">
+            <i class="fas fa-lightbulb"></i><span class="text-[10px] mt-1 font-bold">LEARN</span>
+        </button>
+        <button onclick="switchView('stats')" class="nav-btn text-slate-500 flex flex-col items-center p-2" id="nav-stats">
+            <i class="fas fa-chart-simple"></i><span class="text-[10px] mt-1 font-bold">STATS</span>
+        </button>
+    </nav>
+
+    <script>
+        // --- Service Worker Registration ---
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(registration => console.log('SW registered'))
+                    .catch(err => console.log('SW failed', err));
+            });
+        }
+
+        // --- PWA Install Prompt Logic ---
+        let deferredPrompt;
+        const installPrompt = document.getElementById('install-prompt');
+        const installBtn = document.getElementById('btn-install');
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            installPrompt.classList.remove('hidden');
+        });
+
+        installBtn.addEventListener('click', async () => {
+            if (!deferredPrompt) return;
+            deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
+            deferredPrompt = null;
+            installPrompt.classList.add('hidden');
+        });
+
+        // --- Existing App Logic ---
+
+        // State
+        let timeRemaining = (7 * 3600) + (22 * 60) + 14; 
+        let breatheInterval;
+        let audioCtx;
+        let droneOsc;
+        let droneGain;
+
+        // UI Selectors
+        const clockEl = document.getElementById('timer-clock');
+        const progressCircle = document.getElementById('progress-circle');
+        const panicModal = document.getElementById('panic-modal');
+        const panicMenu = document.getElementById('panic-menu');
+        const gameContainer = document.getElementById('game-container');
+        const breatheContainer = document.getElementById('breathe-container');
+        const toast = document.getElementById('toast');
+
+        // Timer
+        setInterval(() => {
+            if (timeRemaining > 0) {
+                timeRemaining--;
+                const h = Math.floor(timeRemaining / 3600);
+                const m = Math.floor((timeRemaining % 3600) / 60);
+                const s = timeRemaining % 60;
+                clockEl.textContent = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+                progressCircle.style.strokeDashoffset = 754 * (timeRemaining / (12 * 3600));
+            }
+        }, 1000);
+
+        // --- Audio Synthesizer Logic ---
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        function startZenDrone() {
+            initAudio();
+            droneGain = audioCtx.createGain();
+            droneGain.gain.setValueAtTime(0, audioCtx.currentTime);
+            droneGain.gain.linearRampToValueAtTime(0.05, audioCtx.currentTime + 2);
+            droneGain.connect(audioCtx.destination);
+
+            // Create a low harmonic drone
+            [110, 164.81, 220].forEach(freq => {
+                const osc = audioCtx.createOscillator();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                osc.connect(droneGain);
+                osc.start();
+                if (!droneOsc) droneOsc = [];
+                droneOsc.push(osc);
+            });
+        }
+
+        function stopZenDrone() {
+            if (droneGain) {
+                droneGain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 1);
+                setTimeout(() => {
+                    if (droneOsc) {
+                        droneOsc.forEach(o => o.stop());
+                        droneOsc = null;
+                    }
+                }, 1000);
+            }
+        }
+
+        function playChime(freq = 440) {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const g = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            g.gain.setValueAtTime(0.2, audioCtx.currentTime);
+            g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 2);
+            osc.connect(g);
+            g.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 2);
+        }
+
+        // View Logic
+        function switchView(v) {
+            ['dashboard', 'tips', 'stats'].forEach(x => {
+                document.getElementById(`view-${x}`).classList.add('hidden');
+                document.getElementById(`nav-${x}`).className = 'nav-btn text-slate-500 flex flex-col items-center p-2';
+            });
+            document.getElementById(`view-${v}`).classList.remove('hidden');
+            document.getElementById(`nav-${v}`).className = 'nav-btn tab-active text-sky-400 flex flex-col items-center p-2';
+        }
+
+        // Panic Handlers
+        document.getElementById('btn-panic').onclick = () => {
+            panicModal.classList.remove('hidden');
+            panicMenu.classList.remove('hidden');
+            gameContainer.classList.add('hidden');
+            breatheContainer.classList.add('hidden');
+        };
+
+        function closePanicModals() {
+            clearInterval(breatheInterval);
+            stopZenDrone();
+            panicMenu.classList.remove('hidden');
+            gameContainer.classList.add('hidden');
+            breatheContainer.classList.add('hidden');
+        }
+
+        document.getElementById('close-panic').onclick = () => {
+            panicModal.classList.add('hidden');
+            stopZenDrone();
+            showToast("Streak reset. It's okay, try again tomorrow.", "bg-rose-600");
+        };
+
+        function handlePanicOption(opt) {
+            panicModal.classList.add('hidden');
+            showToast(`Good choice! Enjoy your ${opt}.`);
+        }
+
+        // --- Box Breathing Logic ---
+        function openBreathe() {
+            panicMenu.classList.add('hidden');
+            breatheContainer.classList.remove('hidden');
+            startZenDrone();
+            startBreatheCycle();
+        }
+
+        function startBreatheCycle() {
+            const phases = [
+                { text: "Inhale", color: "text-sky-400", freq: 523.25 }, // C5
+                { text: "Hold", color: "text-purple-400", freq: 587.33 },  // D5
+                { text: "Exhale", color: "text-rose-400", freq: 440.00 }, // A4
+                { text: "Hold", color: "text-purple-400", freq: 493.88 }  // B4
+            ];
+            let currentPhase = 0;
+            let counter = 4;
+            const textEl = document.getElementById('breathe-instruction');
+            const countEl = document.getElementById('breathe-counter');
+
+            // Initial phase start
+            textEl.textContent = phases[0].text;
+            textEl.className = `text-3xl font-black uppercase tracking-tighter ${phases[0].color}`;
+            playChime(phases[0].freq);
+
+            breatheInterval = setInterval(() => {
+                counter--;
+                if (counter <= 0) {
+                    currentPhase = (currentPhase + 1) % 4;
+                    counter = 4;
+                    textEl.textContent = phases[currentPhase].text;
+                    textEl.className = `text-3xl font-black uppercase tracking-tighter ${phases[currentPhase].color}`;
+                    playChime(phases[currentPhase].freq);
+                }
+                countEl.textContent = counter;
+            }, 1000);
+        }
+
+        // --- Game Logic ---
+        function openGame() {
+            panicMenu.classList.add('hidden');
+            gameContainer.classList.remove('hidden');
+            initGame();
+        }
+
+        function initGame() {
+            const grid = document.getElementById('memory-grid');
+            const scoreEl = document.getElementById('game-score');
+            const symbols = ['🌙', '⭐', '✨', '🧘', '🌊', '🍃'];
+            let matched = 0;
+            let flipped = [];
+            grid.innerHTML = '';
+            
+            [...symbols, ...symbols].sort(() => Math.random() - 0.5).forEach(s => {
+                const card = document.createElement('div');
+                card.className = 'relative w-full h-full cursor-pointer perspective-1000';
+                card.innerHTML = `
+                    <div class="card-inner w-full h-full transition-transform duration-500 transform-style-3d relative">
+                        <div class="card-front absolute inset-0 glass-card bg-slate-800 flex items-center justify-center text-2xl backface-hidden">?</div>
+                        <div class="card-back absolute inset-0 glass-card bg-amber-500/20 flex items-center justify-center text-3xl backface-hidden rotate-y-180 border-amber-400">${s}</div>
+                    </div>`;
+                card.onclick = () => {
+                    const inner = card.querySelector('.card-inner');
+                    if (flipped.length < 2 && !inner.classList.contains('rotate-y-180')) {
+                        inner.classList.add('rotate-y-180');
+                        initAudio(); // Unlock audio
+                        playChime(660); // High chime for click
+                        flipped.push({ inner, s });
+                        if (flipped.length === 2) {
+                            if (flipped[0].s === flipped[1].s) {
+                                matched++;
+                                scoreEl.textContent = `Pairs: ${matched}/6`;
+                                playChime(880); // Success chime
+                                flipped = [];
+                                if (matched === 6) {
+                                    setTimeout(() => {
+                                        showToast("Zen Mode: Craving Defeated!", "bg-amber-500");
+                                        panicModal.classList.add('hidden');
+                                    }, 1000);
+                                }
+                            } else {
+                                setTimeout(() => {
+                                    flipped.forEach(f => f.inner.classList.remove('rotate-y-180'));
+                                    flipped = [];
+                                }, 800);
+                            }
+                        }
+                    }
+                };
+                grid.appendChild(card);
+            });
+        }
+
+        function showToast(m, c = "bg-sky-600") {
+            toast.textContent = m;
+            toast.className = `fixed bottom-24 left-1/2 -translate-x-1/2 ${c} text-white px-6 py-3 rounded-full font-bold shadow-2xl transition-all duration-300 z-50 opacity-100`;
+            setTimeout(() => toast.classList.add('opacity-0'), 3000);
+        }
+    </script>
+</body>
+</html>
